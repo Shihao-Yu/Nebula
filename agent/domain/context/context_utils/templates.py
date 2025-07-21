@@ -1,0 +1,1 @@
+# Context templates for different scenarios
