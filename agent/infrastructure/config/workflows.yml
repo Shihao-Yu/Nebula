@@ -1,1 +1,34 @@
 # Workflow definitions
+workflows:
+  create_purchase_order_from_pdf:
+    type: "workflow"
+    description: "Process invoice with approval workflow"
+    steps:
+      - name: "extract_invoice_data"
+        tool: "pdf_extractor"
+        parameters:
+          file_path: "{{ input.file_path }}"
+        
+      - name: "validate_vendor"
+        tool: "get_vendor_info"
+        parameters:
+          vendor_id: "{{ steps.extract_invoice_data.vendor_id }}"
+          
+      - name: "check_budget"
+        tool: "check_department_budget"
+        parameters:
+          department: "{{ steps.validate_vendor.department }}"
+          amount: "{{ steps.extract_invoice_data.total_amount }}"
+          
+      - name: "request_approval"
+        tool: "human_in_loop_approval"
+        condition: "steps.extract_invoice_data.total_amount > 10000"
+        parameters:
+          approver: "{{ steps.validate_vendor.department_manager }}"
+          details: "{{ steps.extract_invoice_data }}"
+          
+      - name: "create_payment"
+        tool: "create_payment_record"
+        parameters:
+          invoice_data: "{{ steps.extract_invoice_data }}"
+          approval: "{{ steps.request_approval }}"

@@ -1,1 +1,75 @@
  # Tool definitions
+ # config/tools/api_tools.yml
+api_tools:
+  # Generic API tool configuration
+  get_user_info:
+    type: "api"
+    description: "Retrieve user information from internal API"
+    endpoint: "${USER_SERVICE_URL}/api/v1/users/{user_id}"
+    method: "GET"
+    headers:
+      Authorization: "Bearer ${API_TOKEN}"
+    parameters:
+      user_id:
+        type: "string"
+        required: true
+        description: "User ID to look up"
+    response_mapping:
+      name: "$.data.full_name"
+      email: "$.data.email_address"
+      department: "$.data.department"
+    
+  create_purchase_order:
+    type: "api"
+    description: "Create a new purchase order"
+    endpoint: "${ERP_SERVICE_URL}/api/po/create"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+      X-Client-Id: "${CLIENT_ID}"
+    body_template: |
+      {
+        "vendor_id": "{{ vendor_id }}",
+        "items": {{ items | tojson }},
+        "delivery_date": "{{ delivery_date }}",
+        "notes": "{{ notes }}"
+      }
+    parameters:
+      vendor_id:
+        type: "string"
+        required: true
+      items:
+        type: "array"
+        required: true
+        items:
+          type: "object"
+          properties:
+            sku: { type: "string" }
+            quantity: { type: "integer" }
+            unit_price: { type: "number" }
+      delivery_date:
+        type: "string"
+        format: "date"
+      notes:
+        type: "string"
+        required: false
+    
+  # Same API, different purpose
+  search_products:
+    type: "api"
+    description: "Search for products in catalog"
+    endpoint: "${CATALOG_SERVICE_URL}/api/search"
+    method: "POST"
+    parameters:
+      query:
+        type: "string"
+        required: true
+      filters:
+        type: "object"
+        properties:
+          category: { type: "string" }
+          price_range: 
+            type: "object"
+            properties:
+              min: { type: "number" }
+              max: { type: "number" }
