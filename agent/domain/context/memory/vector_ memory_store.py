@@ -1,1 +1,0 @@
-# Embedding Vector DB integration

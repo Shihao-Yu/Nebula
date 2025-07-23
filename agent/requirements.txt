@@ -1,0 +1,52 @@
+# Core dependencies
+fastapi==0.116.1          # latest stable FastAPI (released Jul 11, 2025) :contentReference[oaicite:1]{index=1}
+uvicorn==0.35.0  # compatible with FastAPI 0.116.1 (current UVicorn release)
+websockets==15.0.1         # latest (Apr 2025)
+python-multipart==0.0.20    # latest (Jan 2025)
+
+# LangChain and LangGraph for orchestration
+langchain==0.3.26          # latest on PyPI (Jun 20, 2025) :contentReference[oaicite:2]{index=2}
+langgraph==0.5.4          # assuming latest—no PyPI release number found
+langchain-openai==0.3.28   # keep if it matches langchain 0.3.x
+langchain-anthropic==0.3.17
+langchain-community==0.3.27 # bump minor community package (still in 0.0.x) :contentReference[oaicite:3]{index=3}
+
+# Pydantic and validation
+pydantic==2.11.7          # latest 2.x for Python 3.11
+pydantic-settings==2.10.1
+instructor==1.10.0
+
+# Database and state management
+redis==6.2.0              # latest stable redis-py (supports Redis 7, 7.4, 8.0) :contentReference[oaicite:4]{index=4}
+motor==3.7.1              # latest motor release (Apr 2025)
+pymongo==4.11.1           # latest PyMongo (Jun 2025)
+langgraph-checkpoint==2.1.1
+langgraph-checkpoint-postgres==2.0.23
+
+# Security
+python-jose[cryptography]==3.4.0  # latest patch (May 2025)
+passlib[bcrypt]==1.7.4
+python-dotenv==1.1.1
+
+# Observability
+langfuse==3.2.1             # latest (Jul 2025)
+structlog==24.4.0
+opentelemetry-api==1.33.1
+opentelemetry-sdk==1.33.1
+
+
+# Utils
+httpx==0.27.0       # latest (Jun 2025)
+tenacity==8.3.0     # latest
+pyyaml==6.0.1          # latest
+jinja2==3.1.4
+
+# Testing
+pytest==8.2.2
+pytest-asyncio==0.23.6
+pytest-mock==3.14.0
+
+# Development
+black==24.8.0
+ruff==0.4.8
+mypy==1.10.0

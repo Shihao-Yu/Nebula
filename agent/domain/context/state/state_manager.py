@@ -1,39 +1,48 @@
-from langgraph import StateGraph, Command
-from typing import TypedDict, Annotated, List
-from langgraph.graph.message import add_messages
+from typing import Dict, Any, Optional
+import asyncio
+from datetime import datetime
+import json
 
-class EnterpriseAgentState(TypedDict):
-    messages: Annotated[List[BaseMessage], add_messages]
-    workflow_context: Dict[str, Any]
-    user_session: Dict[str, str]
-    execution_metadata: Dict[str, Any]
-    pending_human_input: Optional[Dict[str, Any]]
-    tool_results: List[Dict[str, Any]]
-    agent_chain_trace: List[str]
 
-# Multi-agent coordination graph
-def create_enterprise_workflow():
-    workflow = StateGraph(EnterpriseAgentState)
+class StateManager:
+    """Manages agent state across sessions"""
     
-    # Specialized agents
-    workflow.add_node("input_validator", input_validation_agent)
-    workflow.add_node("task_planner", planning_agent)
-    workflow.add_node("tool_executor", tool_execution_agent)
-    workflow.add_node("human_reviewer", human_review_agent)
-    workflow.add_node("result_synthesizer", synthesis_agent)
-    
-    # Dynamic routing with conditional edges
-    workflow.add_conditional_edges(
-        "task_planner",
-        route_based_on_task_complexity,
-        {
-            "simple_execution": "tool_executor",
-            "needs_human_approval": "human_reviewer",
-            "complex_multi_step": "task_planner"  # Loop back for decomposition
-        }
-    )
-    
-    return workflow.compile(
-        checkpointer=PostgresCheckpointer(),
-        interrupt_before=["human_reviewer"]
-    )
+    def __init__(self):
+        self.states: Dict[str, Dict[str, Any]] = {}
+        self._lock = asyncio.Lock()
+        
+    async def get_current_state(self, session_id: str) -> Dict[str, Any]:
+        """Get current state for a session"""
+        
+        async with self._lock:
+            return self.states.get(session_id, {
+                "session_id": session_id,
+                "status": "idle",
+                "created_at": datetime.utcnow().isoformat(),
+                "last_updated": datetime.utcnow().isoformat()
+            })
+            
+    async def update_state(self, session_id: str, updates: Dict[str, Any]):
+        """Update state for a session"""
+        
+        async with self._lock:
+            if session_id not in self.states:
+                self.states[session_id] = {
+                    "session_id": session_id,
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                
+            self.states[session_id].update(updates)
+            self.states[session_id]["last_updated"] = datetime.utcnow().isoformat()
+            
+    async def clear_state(self, session_id: str):
+        """Clear state for a session"""
+        
+        async with self._lock:
+            self.states.pop(session_id, None)
+            
+    async def get_all_active_sessions(self) -> Dict[str, Dict[str, Any]]:
+        """Get all active session states"""
+        
+        async with self._lock:
+            return self.states.copy()

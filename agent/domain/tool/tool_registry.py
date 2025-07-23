@@ -1,54 +1,106 @@
-# Dynamic Tool Registry (ToolFactory)
-from typing import Protocol
-from abc import abstractmethod
+from typing import Dict, List, Any, Optional
+import asyncio
+from datetime import datetime
 
-class ToolInterface(Protocol):
-    name: str
-    description: str
-    parameters_schema: Dict[str, Any]
-    required_permissions: List[str]
-    execution_timeout: int
-    
-    @abstractmethod
-    async def execute(self, parameters: Dict[str, Any], context: ExecutionContext) -> ToolResult:
-        pass
-    
-    @abstractmethod  
-    def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
-        pass
 
-class DynamicToolRegistry:
+class ToolRegistry:
+    """Registry for managing available tools"""
+    
     def __init__(self):
-        self.tools: Dict[str, ToolInterface] = {}
+        self.tools: Dict[str, Dict[str, Any]] = {}
         self.tool_categories: Dict[str, List[str]] = {}
-        self.security_policies: Dict[str, SecurityPolicy] = {}
-    
-    def register_tool(self, tool: ToolInterface, category: str = "general"):
-        # Validate tool implementation
-        self._validate_tool_interface(tool)
+        self._initialize_mock_tools()
         
-        # Register tool
-        self.tools[tool.name] = tool
+    def _initialize_mock_tools(self):
+        """Initialize with mock tools"""
+        
+        mock_tools = [
+            {
+                "id": "search_web",
+                "name": "Web Search",
+                "description": "Search the web for information",
+                "category": "search",
+                "parameters": {
+                    "query": {"type": "string", "required": True},
+                    "limit": {"type": "integer", "default": 10}
+                }
+            },
+            {
+                "id": "send_email",
+                "name": "Send Email",
+                "description": "Send an email to specified recipients",
+                "category": "communication",
+                "parameters": {
+                    "to": {"type": "string", "required": True},
+                    "subject": {"type": "string", "required": True},
+                    "body": {"type": "string", "required": True}
+                }
+            },
+            {
+                "id": "create_document",
+                "name": "Create Document",
+                "description": "Create a new document",
+                "category": "productivity",
+                "parameters": {
+                    "title": {"type": "string", "required": True},
+                    "content": {"type": "string", "required": True},
+                    "format": {"type": "string", "default": "markdown"}
+                }
+            },
+            {
+                "id": "analyze_data",
+                "name": "Analyze Data",
+                "description": "Analyze and visualize data",
+                "category": "analytics",
+                "parameters": {
+                    "data_source": {"type": "string", "required": True},
+                    "analysis_type": {"type": "string", "required": True}
+                }
+            }
+        ]
+        
+        for tool in mock_tools:
+            self.register_tool(tool)
+            
+    def register_tool(self, tool_config: Dict[str, Any]):
+        """Register a new tool"""
+        
+        tool_id = tool_config["id"]
+        category = tool_config.get("category", "general")
+        
+        self.tools[tool_id] = tool_config
         
         if category not in self.tool_categories:
             self.tool_categories[category] = []
-        self.tool_categories[category].append(tool.name)
+        self.tool_categories[category].append(tool_id)
         
-        # Set security policy
-        self.security_policies[tool.name] = SecurityPolicy(
-            required_permissions=tool.required_permissions,
-            execution_timeout=tool.execution_timeout,
-            sandbox_requirements=self._determine_sandbox_requirements(tool)
-        )
-    
-    async def discover_tools_for_task(self, task_description: str, user_context: UserContext) -> List[ToolInterface]:
-        # Use LLM to analyze task and suggest tools
-        relevant_tools = await self._semantic_tool_discovery(task_description)
+    async def get_available_tools(self) -> List[Dict[str, Any]]:
+        """Get all available tools"""
         
-        # Filter by user permissions
-        authorized_tools = [
-            tool for tool in relevant_tools
-            if self._check_tool_authorization(tool, user_context)
-        ]
+        return list(self.tools.values())
         
-        return authorized_tools
+    async def get_tool_info(self, tool_id: str) -> Optional[Dict[str, Any]]:
+        """Get information about a specific tool"""
+        
+        return self.tools.get(tool_id)
+        
+    async def get_tools_by_category(self, category: str) -> List[Dict[str, Any]]:
+        """Get tools by category"""
+        
+        tool_ids = self.tool_categories.get(category, [])
+        return [self.tools[tool_id] for tool_id in tool_ids if tool_id in self.tools]
+        
+    async def search_tools(self, query: str) -> List[Dict[str, Any]]:
+        """Search tools by name or description"""
+        
+        query_lower = query.lower()
+        matching_tools = []
+        
+        for tool in self.tools.values():
+            name = tool.get("name", "").lower()
+            description = tool.get("description", "").lower()
+            
+            if query_lower in name or query_lower in description:
+                matching_tools.append(tool)
+                
+        return matching_tools

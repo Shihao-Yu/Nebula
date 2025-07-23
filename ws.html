@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Agent Contract Renderer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .input-section input {
+            width: 70%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .input-section button {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .input-section button:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .messages {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            background: #fafafa;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #ccc;
+        }
+        .message.markdown {
+            background: #e3f2fd;
+            border-left-color: #2196f3;
+        }
+        .message.component {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        .message.ui-interaction {
+            background: #f3e5f5;
+            border-left-color: #9c27b0;
+        }
+        .message.user {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+        .message.error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        .message-type {
+            font-size: 12px;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .message-content {
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        .timestamp {
+            font-size: 11px;
+            color: #999;
+            float: right;
+        }
+        .clear-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            float: right;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Agent Contract Renderer</h1>
+        
+        <div id="status" class="status disconnected">
+            Disconnected
+        </div>
+        
+        <div class="input-section">
+            <input type="text" id="messageInput" placeholder="Type your message here..." />
+            <button onclick="sendMessage()">Send</button>
+            <button class="clear-btn" onclick="clearMessages()">Clear</button>
+        </div>
+        
+        <div id="messages" class="messages">
+            <div class="message">
+                <div class="message-type">System</div>
+                <div class="message-content">Ready to connect...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let messageContainer = document.getElementById('messages');
+        let statusDiv = document.getElementById('status');
+        let messageInput = document.getElementById('messageInput');
+
+        function connect() {
+            ws = new WebSocket('ws://localhost:8000/ws/agent/purchasing/1323cd31-3232-4ebc-bbce-9a23c882d3b2');
+            
+            ws.onopen = () => {
+                console.log("WebSocket connected!");
+                updateStatus(true);
+                addSystemMessage("Connected to agent");
+            };
+            
+            ws.onmessage = (event) => {
+                console.log("WS message:", event.data);
+                try {
+                    const message = JSON.parse(event.data);
+                    renderMessage(message);
+                } catch (e) {
+                    console.error("Failed to parse message:", e);
+                    addSystemMessage("Failed to parse message: " + event.data);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error("WS error", error);
+                addSystemMessage("WebSocket error occurred");
+            };
+            
+            ws.onclose = (event) => {
+                console.log("WS closed", event);
+                updateStatus(false);
+                addSystemMessage("Disconnected from agent");
+                setTimeout(connect, 3000);
+            };
+        }
+
+        function updateStatus(connected) {
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = '🟢 Connected';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '🔴 Disconnected';
+            }
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && ws && ws.readyState === WebSocket.OPEN) {
+                const payload = {
+                    type: "user_message",
+                    content: message
+                };
+                ws.send(JSON.stringify(payload));
+                
+                addMessage({
+                    type: "user_message",
+                    content: message,
+                    timestamp: new Date().toISOString()
+                }, "user", "👤 You", message);
+                
+                messageInput.value = '';
+            }
+        }
+
+        function renderMessage(message) {
+            const messageType = message.type;
+            
+            switch (messageType) {
+                case 'markdown':
+                    renderMarkdownMessage(message);
+                    break;
+                case 'component':
+                    renderComponentMessage(message);
+                    break;
+                case 'ui_interaction_required':
+                    renderUIInteractionMessage(message);
+                    break;
+                case 'ui_field_options':
+                    renderFieldOptionsMessage(message);
+                    break;
+                case 'connection':
+                    renderConnectionMessage(message);
+                    break;
+                case 'error':
+                    renderErrorMessage(message);
+                    break;
+                default:
+                    renderGenericMessage(message);
+            }
+        }
+
+        function renderMarkdownMessage(message) {
+            const content = message.payload || '';
+            addMessage(message, 'markdown', '📝 Agent', content);
+        }
+
+        function renderComponentMessage(message) {
+            const payload = message.payload || {};
+            const componentType = payload.component;
+            const data = payload.data || {};
+            
+            if (componentType === 'progress') {
+                renderProgressComponent(message, data);
+            } else {
+                const content = `Component: ${componentType}\n${JSON.stringify(data, null, 2)}`;
+                addMessage(message, 'component', '🔧 Component', content);
+            }
+        }
+
+        function renderProgressComponent(message, data) {
+            const status = data.status || 'Processing...';
+            const stepIndex = data.step_index;
+            const totalSteps = data.total_steps;
+            
+            let content = '';
+            let icon = '🔄';
+            
+            if (status === '_workflow_finish') {
+                content = '✅ Workflow completed successfully';
+                icon = '✅';
+            } else if (stepIndex !== null && totalSteps !== null) {
+                const progress = Math.round((stepIndex / totalSteps) * 100);
+                content = `${status}\n${createProgressBar(stepIndex, totalSteps)} (${stepIndex}/${totalSteps})`;
+            } else {
+                content = `🔄 ${status}`;
+            }
+            
+            addMessage(message, 'component', `${icon} Status`, content);
+        }
+
+        function renderUIInteractionMessage(message) {
+            const payload = message.payload || {};
+            const interactionId = payload.interaction_id;
+            const componentType = payload.component_type;
+            const data = payload.data || {};
+            
+            if (componentType === 'form') {
+                renderFormInteraction(message, data.form || {}, interactionId);
+            } else {
+                const content = `🔔 User interaction required\nComponent: ${componentType}\nInteraction ID: ${interactionId}`;
+                addMessage(message, 'ui-interaction', '🔔 UI Interaction', content);
+            }
+        }
+
+        function renderFormInteraction(message, formData, interactionId) {
+            const title = formData.title || 'Form';
+            const fields = formData.fields || [];
+            
+            let content = `📋 ${title}\nInteraction ID: ${interactionId}\n\nFields:\n`;
+            
+            fields.forEach(field => {
+                const required = field.required ? ' *' : '';
+                const fieldType = field.type || 'text';
+                content += `\n• ${field.label}${required} (${fieldType})`;
+                
+                if (field.helpText) {
+                    content += `\n  💡 ${field.helpText}`;
+                }
+                
+                if (field.type === 'select' && field.options) {
+                    content += `\n  📊 ${field.options.length} options available`;
+                    if (field.searchable) content += ' (searchable)';
+                    if (field.async) content += ' (dynamic)';
+                }
+                
+                if (field.type === 'table' && field.rows) {
+                    content += `\n  📊 ${field.rows.length} rows`;
+                    if (field.selectable) content += ' (selectable)';
+                }
+            });
+            
+            addMessage(message, 'ui-interaction', '📋 Form', content);
+        }
+
+        function renderFieldOptionsMessage(message) {
+            const payload = message.payload || {};
+            const fieldKey = payload.field_key;
+            const options = payload.options || [];
+            const total = payload.total || 0;
+            const complete = payload.complete;
+            const error = payload.error;
+            
+            let content = '';
+            let icon = '📝';
+            
+            if (error) {
+                content = `❌ Error loading options for ${fieldKey}: ${error}`;
+                icon = '❌';
+            } else {
+                const status = complete ? 'complete' : 'partial';
+                content = `Updated options for ${fieldKey} (${options.length}/${total} - ${status})`;
+                
+                if (options.length > 0) {
+                    content += '\n\nOptions:';
+                    options.slice(0, 5).forEach(option => {
+                        const label = option.label ? option.label.substring(0, 60) : 'No label';
+                        content += `\n• ${label}`;
+                    });
+                    
+                    if (options.length > 5) {
+                        content += `\n... and ${options.length - 5} more`;
+                    }
+                }
+            }
+            
+            addMessage(message, 'component', `${icon} Field Update`, content);
+        }
+
+        function renderConnectionMessage(message) {
+            const status = message.status || 'unknown';
+            addSystemMessage(`Connection: ${status}`);
+        }
+
+        function renderErrorMessage(message) {
+            const payload = message.payload || {};
+            const errorMessage = payload.message || 'Unknown error';
+            const errorCode = payload.code ? ` (${payload.code})` : '';
+            
+            const content = `❌ ${errorMessage}${errorCode}`;
+            addMessage(message, 'error', '❌ Error', content);
+        }
+
+        function renderGenericMessage(message) {
+            const content = JSON.stringify(message, null, 2);
+            addMessage(message, 'component', `📦 ${message.type}`, content);
+        }
+
+        function addMessage(message, cssClass, typeLabel, content) {
+            const timestamp = message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${cssClass}`;
+            messageDiv.innerHTML = `
+                <span class="timestamp">${timestamp}</span>
+                <div class="message-type">${typeLabel}</div>
+                <div class="message-content">${content}</div>
+            `;
+            
+            messageContainer.appendChild(messageDiv);
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+        }
+
+        function addSystemMessage(content) {
+            addMessage({
+                type: 'system',
+                timestamp: new Date().toISOString()
+            }, 'component', '🔧 System', content);
+        }
+
+        function createProgressBar(current, total, width = 30) {
+            if (total <= 0) return '[N/A]';
+            
+            const progress = Math.min(current / total, 1.0);
+            const filled = Math.floor(progress * width);
+            const empty = width - filled;
+            const percentage = Math.round(progress * 100);
+            
+            const bar = '█'.repeat(filled) + '░'.repeat(empty);
+            return `[${bar}] ${percentage}%`;
+        }
+
+        function clearMessages() {
+            messageContainer.innerHTML = '<div class="message"><div class="message-type">System</div><div class="message-content">Messages cleared</div></div>';
+        }
+
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        connect();
+    </script>
+</body>
+</html>
